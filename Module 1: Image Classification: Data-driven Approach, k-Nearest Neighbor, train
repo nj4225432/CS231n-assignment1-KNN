@@ -1,0 +1,116 @@
+import numpy as np
+import os
+import pickle
+from statistics import mode
+import time
+
+# %% 
+start = time.clock()
+def load_CIFAR_batch(filename):
+   """ load single batch of cifar """
+   with open(filename, 'rb') as f:
+     datadict = pickle.load(f,encoding='latin1')  
+     X = datadict['data']
+     Y = datadict['labels']
+     X = X.reshape(10000,3,32,32).transpose(0,2,3,1).astype("float") 
+     Y = np.array(Y)
+     return X, Y
+
+def load_CIFAR10(ROOT):
+    """ load all of cifar """
+    xs = []
+    ys = []
+    for b in range(1,6):
+        f = os.path.join(ROOT, 'data_batch_%d' % b) 
+        X, Y = load_CIFAR_batch(f)
+        xs.append(X)  
+        ys.append(Y)
+    Xtr = np.concatenate(xs)
+    Ytr = np.concatenate(ys)
+    del X, Y
+    Xte, Yte = load_CIFAR_batch(os.path.join(ROOT, 'test_batch'))
+    return Xtr, Ytr, Xte, Yte
+
+start1 = time.clock()
+Xtr, Ytr, Xte, Yte = load_CIFAR10('F:/2016.7.31/PythonTry/PyNN/cifar-10-batches-py')
+end1 = time.clock()
+print(end1 - start1)
+
+# Nearest Neighbor Classifier
+# %%
+class NearestNeighbor(object):
+  def __init__(self):
+    pass
+
+  def train(self, X, y):
+    """ X is N x D where each row is an example. Y is 1-dimension of size N """
+    # the nearest neighbor classifier simply remembers all the training data
+    self.Xtr = X[:10000, :]
+    self.ytr = y
+
+  def predict(self, X):
+    """ X is N x D where each row is an example we wish to predict label for """
+    num_test = X.shape[0]
+    # lets make sure that the output type matches the input type
+    Ypred = np.zeros(num_test, dtype = self.ytr.dtype)
+
+    # loop over all test rows
+    for i in range(num_test):  
+      # find the nearest training image to the i'th test image
+      # using the L1 distance (sum of absolute value differences)
+      distances = np.sum(np.abs(self.Xtr - X[i,:]), axis = 1)
+      min_index = np.argmin(distances) # get the index with smallest distance
+      Ypred[i] = self.ytr[min_index] # predict the label of the nearest example
+
+    return Ypred
+
+Xtr_rows = Xtr.reshape(Xtr.shape[0], 32 * 32 * 3)
+Xte_rows = Xte.reshape(Xte.shape[0], 32 * 32 * 3)
+nn = NearestNeighbor()
+#nn.train(Xtr_rows, Ytr)
+#Yte_predict = nn.predict(Xte_rows)
+#print('accuracy:%f' % (np.mean(Yte_predict == Yte))) 
+
+# K-Nearest Neighbor Classifier
+# %%
+class K_NearestNeighbor(object):
+  def __init__(self):
+    pass
+
+  def train(self, X, y):
+    self.Xtr = X
+    self.ytr = y
+
+  def predict(self, X, K):
+    num_test = X.shape[0]
+    Ypred = np.zeros(num_test, dtype = self.ytr.dtype)
+
+    for i in range(num_test):  
+      distances = np.sum(np.abs(self.Xtr - X[i,:]), axis = 1)
+      information = np.row_stack((np.sort(distances)[:K], self.ytr[np.argsort(distances)[:K]]))                               
+      information = np.array(information, dtype='int64')
+      class_count = np.bincount(information[1,:], minlength=10) 
+      max_class = class_count == np.max(class_count)
+      jud = np.sum(max_class)
+      if jud == 1:  
+          Ypred[i] = mode(information[1,:])
+      else:
+          n_class = np.argwhere(max_class)
+          n_distances = []
+          for j in range(len(n_class)):
+              n_distances.append(np.sum(information[0,:][information[1, :] == n_class[j]]))
+          Ypred[i] = n_class[np.argmin(n_distances)]
+
+    return Ypred
+
+Xtr_rowsk = Xtr_rows[:45000, :] 
+Xva_rowsk = Xtr_rows[45000:50000, :] 
+Yva_pre = []
+KNN = K_NearestNeighbor() 
+KNN.train(Xtr_rowsk, Ytr[:45000]) 
+for iK in [1, 3, 5, 7, 9, 11]:
+    Yva_pre.append(KNN.predict(Xva_rowsk, iK))  
+for i in range(len(Yva_pre)):
+    print('accuracy:%.4f' % (np.mean(Yva_pre[i] == Ytr[45000:50000]))) 
+end = time.clock()
+print(end-start)
