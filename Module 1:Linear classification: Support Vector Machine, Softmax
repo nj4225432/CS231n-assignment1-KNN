@@ -1,0 +1,18 @@
+import numpy as np
+def L(X, y, W):
+
+  delta = 1.0
+  scores = W.dot(X)
+  scores_y = scores[y, np.arange(scores.shape[1])] 
+  n_margins = np.maximum(0, scores - scores_y + delta) 
+  n_margins[y, np.arange(scores.shape[1])] = 0 
+  n_loss = np.sum(n_margins) / len(y) 
+  return n_loss
+  
+Xtr = np.row_stack((np.load('Xtr.npy').T, np.ones((1, 50000), dtype='int32')))
+Ytr = np.load('Ytr.npy')
+Xte = np.row_stack((np.load('Xte.npy').T, np.ones((1, 10000), dtype='int32')))
+Yte = np.load('Yte.npy')
+Wei = np.random.rand(10, 3073) * 0.001
+
+loss = L(Xte, Yte, Wei)  
